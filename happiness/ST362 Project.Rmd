@@ -1,0 +1,128 @@
+---
+title: "ST362 Project"
+author: "Zhenyang Ding" "Mustafa Ali"
+date: "2024-11-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#Install and import package to deal with the categorical variable, region.
+install.packages("fastDummies")
+library(fastDummies)
+```
+
+```{r}
+#Import the csv file and display the first few rows
+HAPPY <- read.csv("2019_happiness_cleaned.csv")
+head(HAPPY)
+
+#Create dummy variables
+HAPPY <- dummy_cols(HAPPY, select_columns = "region")
+head(HAPPY)
+HAPPY <- HAPPY[ -c(10) ]
+head(HAPPY)
+```
+
+```{r}
+# Modified Box-cox by Dr Sunny Wang
+box.cox <- function(x,y,intercept=TRUE, ylim=NULL, 
+                    lambda =seq (-1, 1, len=21), transform.x=FALSE,verbose =TRUE, make.plot=TRUE)
+{
+  good.cases <- (y>0)
+  y <- y[good.cases]
+  x <- as.matrix(x)
+  x <- x[good.cases, , drop=F]
+  
+  g <- exp(mean(log(y)))
+  
+  if(transform.x)
+  { 
+    x.pos <- vector(mode= "logical", length=ncol(x))
+    for(j in 1:ncol(x))
+      x.pos[j] <- (min(x[j]) > 0)
+    x.name <- dimnames(x)[[2]]
+    if( mode(x.name)=="NULL")
+      x.name <- paste("X",1:ncol(x),sep="")
+  } 
+  
+  log.lik <- vector(mode ="numeric",length=length(lambda))
+  
+  for(i in 1:length(lambda))
+  {     
+    if(lambda[i] !=0)
+    {  
+
+      z <- y^lambda[i]
+      if (transform.x)
+      {  
+        x.new <- x 
+        x.new.name <- x.name
+        for(j in 1:ncol(x))
+          if(x.pos[j])
+          { 
+            x.new[,j] <- x[,j]^lambda[i] 
+            x.new.name[j] <- paste(x.name[j],"^",lambda[i], sep="")
+          }
+        
+      }
+      
+    }
+    
+    else
+    { 
+      z<- log(y)
+      if(transform.x)
+      { 
+        x.new <- x 
+        x.new.name <- x.name
+        for(j in 1:ncol(x))
+          if(x.pos[j])
+          { 
+            x.new[,j] <- log(x[,j])
+            x.new.name[j] <- paste("log(",x.name[j],")",sep="")
+          }
+      }
+      
+    }
+    
+    if(transform.x)
+    {
+      dimnames(x.new) <- list(NULL,x.new.name)
+      reg <- lsfit(x.new,z,intercept=intercept) 
+    }
+    else 
+      reg <- lsfit(x,z,intercept = intercept)
+    
+    if(verbose)
+    { cat("Lambda:",lambda[i], "\n")
+      ls.print(reg)
+    }
+    
+    res <- reg$residuals
+    ss.res <- sum(res^2)/g^(2.0*(lambda[i] - 1.0 ))
+    if (lambda[i] !=0.0)
+      ss.res <- ss.res/lambda[i]^2
+    log.lik[i] <- -length(y)/2.0*log(ss.res)
+  }
+  
+  if(make.plot)
+  { 
+    if(mode(ylim)=="NULL")
+      ylim <- range(log.lik)
+    plot(lambda,log.lik,ylim=ylim, ylab="Log Likelihood", type="b", lty=1)
+    abline(max(log.lik)-3.8416/2,0,lty=2)
+  }
+  
+  return(log.lik)
+  
+}
+```
+
+```{r}
+
+```
