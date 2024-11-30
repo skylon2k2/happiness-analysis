@@ -10,26 +10,17 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
+Installing packages
 ```{r}
 #Install and import package to deal with the categorical variable, region.
-install.packages("fastDummies")
+if (!require(fastDummies)) install.packages('fastDummies', dependencies = TRUE)
 library(fastDummies)
+if (!require(leaps)) install.packages('leaps', dependencies = TRUE)
+library(leaps)
 ```
-
+Useful functions (minimize code chunks for readability)
 ```{r}
-#Import the csv file and display the first few rows
-HAPPY <- read.csv("2019_happiness_cleaned.csv")
-head(HAPPY)
-
-#Create dummy variables
-HAPPY <- dummy_cols(HAPPY, select_columns = "region")
-head(HAPPY)
-HAPPY <- HAPPY[ -c(10) ]
-head(HAPPY)
-```
-
-```{r}
-# Modified Box-cox by Dr Sunny Wang
+# Modified Box-cox by Dr Sunny Wang. You can minimize this code chunk.
 box.cox <- function(x,y,intercept=TRUE, ylim=NULL, 
                     lambda =seq (-1, 1, len=21), transform.x=FALSE,verbose =TRUE, make.plot=TRUE)
 {
@@ -122,6 +113,127 @@ box.cox <- function(x,y,intercept=TRUE, ylim=NULL,
   
 }
 ```
+
+```{r}
+# Mallow's Ck by Dr Sunny Wang
+leaps.ck <- function (X, Y, nbest =3) 
+{
+  # call leaps using C_k criterion, make plot of C_k versus k,
+  # and return leaps output in a matrix for nicer output.
+  # The matrix has two columns: for k and for C_k. The row labels
+  # contain the regression labels.
+  leaps.out <- leaps(X,Y,method="Cp",nbest=nbest)
+  
+  leaps.mat <- cbind(leaps.out$size,round(leaps.out$Cp,digits=4))
+  
+  colnames(leaps.mat) <- c("k","C_k")
+  
+  leaps.mat <- cbind(leaps.out$which, leaps.mat)
+  
+  return(leaps.mat)
+  
+} 
+```
+
+
+```{r}
+#Import the csv file and display the first few rows
+HAPPY <- read.csv("2019_happiness_cleaned.csv")
+head(HAPPY)
+
+#Create dummy variables
+HAPPY <- dummy_cols(HAPPY, select_columns = "region")
+head(HAPPY)
+HAPPY <- HAPPY[ -c(10) ]
+head(HAPPY)
+
+# Dropped the rank variable bc it seemed useless
+HAPPY2 <- subset(HAPPY, select = -c(rank))
+head(HAPPY2)
+HAPPY2
+```
+
+```{r}
+# Model building
+
+null_model <- lm(score~1, HAPPY)
+# summary(null_model)
+
+# Currently: Not an optimal model. Needs to add interaction effects.
+full_model <- lm(score~., HAPPY2)
+# summary(full_model)
+
+# Seeing lots of NA's on full model, like for region_Central and Eastern Europe. Why is this?
+```
+
+Variable selection methods
+```{r}
+# Best subset selection: forward
+result.leaps.forward <- regsubsets(score~., data=HAPPY2, nvmax=10, method="forward") # run best subsets selection
+
+# Maybe ignore R^2 for now, not preferable criteria
+# Note that AIC isn't a thing for this
+plot(result.leaps.forward, scale="r2")
+
+plot(result.leaps.forward, scale="adjr2")
+plot(result.leaps.forward, scale="bic")
+plot(result.leaps.forward, scale="Cp")
+
+```
+
+Keep this code chunk, run later for each regsubset
+```{r}
+# reg_summary <- summary(result.leaps.forward) # get a summary of the models
+# plot(reg_summary$bic, xlab = "Number of Variables", ylab = "BIC", type = "b")
+# 
+# # Extract coefficients for the model with, say, 4 predictors
+# coef(result.leaps.forward, 4)
+```
+
+```{r}
+# Best subset selection: backward
+result.leaps.backward <- regsubsets(score~., data=HAPPY2, nvmax=10, method="backward") 
+
+# Maybe ignore R^2 for now, not preferable criteria
+# Note that AIC isn't a thing for this
+plot(result.leaps.forward, scale="r2")
+
+plot(result.leaps.backward, scale="adjr2")
+plot(result.leaps.backward, scale="bic")
+plot(result.leaps.backward, scale="Cp")
+```
+```{r}
+# Best subset selection: seqrep
+# Not sure if this is hybrid
+result.leaps.seqrep <- regsubsets(score~., data=HAPPY2, nvmax=10, method="seqrep") 
+
+# Maybe ignore R^2 for now, not preferable criteria
+# Note that AIC isn't a thing for this
+plot(result.leaps.seqrep, scale="r2")
+
+plot(result.leaps.seqrep, scale="adjr2")
+plot(result.leaps.seqrep, scale="bic")
+plot(result.leaps.seqrep, scale="Cp")
+```
+
+
+```{r}
+# Look at last result for AIC and variables to select
+step_forward <- step(null_model, scope=list(lower=null_model, upper=full_model), direction="forward")
+```
+```{r}
+step_backward <- step(null_model, scope=list(lower=null_model, upper=full_model), direction="backward")
+
+```
+
+
+
+
+
+```{r}
+step_both <- step(null_model, scope=list(lower=null_model, upper=full_model), direction="both")
+```
+
 
 ```{r}
 
