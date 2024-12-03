@@ -1,0 +1,61 @@
+---
+title: "happiness_analysis"
+
+output:
+  html_document:
+    df_print: paged
+  pdf_document: 
+    latex_engine: xelatex
+    
+geometry: top=0.5cm
+
+date: "2024-12-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+We will be performing residual analysis on 2019_happiness_cleaned.csv, the Happiness dataset for 2019.
+
+
+
+```{r}
+#Import the csv file
+HAPPY <- read.csv("2019_happiness_cleaned.csv")
+# Remove rank, as we will be using score as the response variable
+HAPPY <- subset(HAPPY, select = -c(rank))
+head(HAPPY)
+```
+
+```{r}
+#Create dummy variables
+HAPPY2 <- dummy_cols(HAPPY, select_columns = "region")
+# Drop the `region`, because we have converted it into dummy variables
+# Drop the`Australia and New Zealand` region, because we need to ensure t(X) %*% X will be non-singular.
+HAPPY2 <- subset(HAPPY2, select = -c(region, `region_Australia and New Zealand`))
+head(HAPPY2)
+```
+
+We will define the X matrix. This matrix will consist of these columns, in this order:
+Intercept, GDP per Capita, Social support, Healthy life expectancy, The freedom to make life choices, Generosity, Perceptions of corruption, and all the Region variables (except the Australia and New Zealand region).
+
+
+```{r}
+X <- cbind(1, as.matrix( HAPPY2[,c(2:ncol(HAPPY2))] ))
+head(X)
+```
+We will define the Y vector. This vector will contain the happiness scores.
+
+```{r}
+Y <- cbind(as.matrix( HAPPY2[,c(1)] ))
+head(Y)
+```
+1. Residual plot against each explanatory variable,
+2. Partial residual plot for each explanatory variable,
+3. Added variable plot.
+
+4. Residuals vs. fitted,
+5. Q-Q residuals (theoretical quantities vs. standardized residuals).
+

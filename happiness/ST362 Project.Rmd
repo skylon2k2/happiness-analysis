@@ -137,33 +137,31 @@ leaps.ck <- function (X, Y, nbest =3)
 
 
 ```{r}
-#Import the csv file and display the first few rows
+#Import the csv file
 HAPPY <- read.csv("2019_happiness_cleaned.csv")
+# Remove rank, as we will be using score as the response variable
+HAPPY <- subset(HAPPY, select = -c(rank))
 head(HAPPY)
+```
 
+```{r}
 #Create dummy variables
-HAPPY <- dummy_cols(HAPPY, select_columns = "region")
-head(HAPPY)
-HAPPY <- HAPPY[ -c(10) ]
-head(HAPPY)
-
-# Dropped the rank variable bc it seemed useless
-HAPPY2 <- subset(HAPPY, select = -c(rank))
+HAPPY2 <- dummy_cols(HAPPY, select_columns = "region")
+# Drop the `region`, because we have converted it into dummy variables
+# Drop the`Australia and New Zealand` region, because we need to ensure t(X) %*% X will be non-singular.
+HAPPY2 <- subset(HAPPY2, select = -c(region, `region_Australia and New Zealand`))
 head(HAPPY2)
-HAPPY2
 ```
 
 ```{r}
 # Model building
 
-null_model <- lm(score~1, HAPPY)
-# summary(null_model)
+null_model2 <- lm(score~1, HAPPY2)
+summary(null_model2)
 
 # Currently: Not an optimal model. Needs to add interaction effects.
-full_model <- lm(score~., HAPPY2)
-# summary(full_model)
-
-# Seeing lots of NA's on full model, like for region_Central and Eastern Europe. Why is this?
+full_model2 <- lm(score~., HAPPY2)
+summary(full_model2)
 ```
 
 Variable selection methods
