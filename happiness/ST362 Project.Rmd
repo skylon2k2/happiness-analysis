@@ -1,13 +1,12 @@
 ---
 title: "ST362 Project"
-author: "Zhenyang Ding" "Mustafa Ali"
-date: "2024-11-24"
-output: html_document
+author: "Zhenyang Ding, Mustafa Ali"
+date: "2024-12-10"
+output:
+  html_document: default
+  pdf_document: default
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
 
 Installing packages
@@ -22,7 +21,8 @@ Useful functions (minimize code chunks for readability)
 ```{r}
 # Modified Box-cox by Dr Sunny Wang. You can minimize this code chunk.
 box.cox <- function(x,y,intercept=TRUE, ylim=NULL, 
-                    lambda =seq (-1, 1, len=21), transform.x=FALSE,verbose =TRUE, make.plot=TRUE)
+                    lambda =seq (-1, 1, len=21), transform.x=FALSE,verbose =TRUE,
+                    make.plot=TRUE)
 {
   good.cases <- (y>0)
   y <- y[good.cases]
@@ -145,10 +145,18 @@ head(HAPPY)
 ```
 
 ```{r}
-#Create dummy variables
+# Remove the region variable,
+# as it does not make sense for some statistical techniques
+HAPPYnoReg <- subset(HAPPY, select = -c(region))
+head(HAPPYnoReg)
+```
+
+```{r}
+# Create dummy variables
 HAPPY2 <- dummy_cols(HAPPY, select_columns = "region")
-# Drop the `region`, because we have converted it into dummy variables
-# Drop the`Australia and New Zealand` region, because we need to ensure t(X) %*% X will be non-singular.
+# Drop the `region`, because we have converted it into dummy variables.
+# Drop the`Australia and New Zealand` region,
+# because we need to ensure t(X) %*% X will be non-singular.
 HAPPY2 <- subset(HAPPY2, select = -c(region, `region_Australia and New Zealand`))
 head(HAPPY2)
 ```
@@ -156,18 +164,18 @@ head(HAPPY2)
 ```{r}
 # Model building
 
-null_model2 <- lm(score~1, HAPPY2)
-summary(null_model2)
+null_model <- lm(score~1, HAPPYnoReg)
+summary(null_model)
 
 # Currently: Not an optimal model. Needs to add interaction effects.
-full_model2 <- lm(score~., HAPPY2)
-summary(full_model2)
+full_model <- lm(score~., HAPPYnoReg)
+summary(full_model)
 ```
 
 Variable selection methods
 ```{r}
 # Best subset selection: forward
-result.leaps.forward <- regsubsets(score~., data=HAPPY2, nvmax=10, method="forward") # run best subsets selection
+result.leaps.forward <- regsubsets(score~., data=HAPPYnoReg, nvmax=10, method="forward")
 
 # Maybe ignore R^2 for now, not preferable criteria
 # Note that AIC isn't a thing for this
@@ -190,7 +198,7 @@ Keep this code chunk, run later for each regsubset
 
 ```{r}
 # Best subset selection: backward
-result.leaps.backward <- regsubsets(score~., data=HAPPY2, nvmax=10, method="backward") 
+result.leaps.backward <- regsubsets(score~., data=HAPPYnoReg, nvmax=10, method="backward") 
 
 # Maybe ignore R^2 for now, not preferable criteria
 # Note that AIC isn't a thing for this
@@ -203,8 +211,8 @@ plot(result.leaps.backward, scale="Cp")
 ```{r}
 # Best subset selection: seqrep
 # Not sure if this is hybrid
-result.leaps.seqrep <- regsubsets(score~., data=HAPPY2, nvmax=10, method="seqrep") 
-
+result.leaps.seqrep <- regsubsets(score~., data=HAPPYnoReg, nvmax=10, method="seqrep") 
+?regsubsets
 # Maybe ignore R^2 for now, not preferable criteria
 # Note that AIC isn't a thing for this
 plot(result.leaps.seqrep, scale="r2")
@@ -217,22 +225,183 @@ plot(result.leaps.seqrep, scale="Cp")
 
 ```{r}
 # Look at last result for AIC and variables to select
-step_forward <- step(null_model, scope=list(lower=null_model, upper=full_model), direction="forward")
+step_forward <- step(null_model, scope=list(lower=null_model, upper=full_model),
+                     direction="forward")
+summary(step_forward)
 ```
 ```{r}
-step_backward <- step(null_model, scope=list(lower=null_model, upper=full_model), direction="backward")
-
+step_backward <- step(full_model, scope=list(lower=null_model, upper=full_model), 
+                      direction="backward")
+summary(step_backward)
 ```
 
 
 
-
-
-```{r}
-step_both <- step(null_model, scope=list(lower=null_model, upper=full_model), direction="both")
-```
 
 
 ```{r}
+step_both <- step(null_model, scope=list(lower=null_model, upper=full_model), 
+                  direction="both")
+```
+
+Now, we will perform the residual analysis.
+
+```{r}
+# Partial Residual Plot, by Dr Sunny Wang.
+
+ls.part.res.plot <- function(x,y,j,intercept=TRUE,x.name=NULL,y.name="Y",main=NULL)
+  
+  # Produces a partial-residual plot for variable j in x. 
+  # x - X matrix for current model (no column of 1's should be included for
+  #     for an intercept term);
+  # y - Y vector;
+  # j - a column number of x;
+  # intercept - set to FALSE for a no-intercept model;
+  # x.name - x-axis label - if not supplied, then the name of column
+  #          j in x will be used;
+  # y.name - y-axis label;
+  # main - main title for plot, if not supplied then the title is of the form
+#        "Partial-residual plot for x".
+
+{ # Get residuals. 
+  reg <- lsfit(x,y,intercept=intercept)
+  res <- reg$residuals
+  
+  
+  # add component from x_j
+  # if there is an intercept, we want coeeficient j+1
+  
+  jj <- j
+  if(intercept == TRUE)
+    jj <- j+1
+  res <- res+reg$coef[jj]*x[,j]
+  
+  # set up labels. 
+  
+  if(mode(x.name) == "NULL")
+    x.name <- dimnames(x)[[2]][j]
+  if(mode(main) == "NULL")
+    main <- paste("Partial-residual plot for", x.name)
+  
+  
+  plot(x[,j], res, main=main, xlab=x.name,
+       ylab=paste("Partial residuals for",y.name))
+  lines(lowess(x[,j],res))
+}
+
+# Added Variable Plot, by Dr Sunny Wang.
+
+ls.added.var.plot <- function(x,y,added.var,intercept=TRUE,
+                              x.name="X",y.name="Y",main="")
+  # Produces an added-variable plot.
+  # x - X matrix for current model (no column of 1's should be included for
+  #     for an intercept term);
+  # y - Y vector;
+  # added.var - if a scalar, a column number of x;
+  #              if a vector of length > 1, values for a "new" x variable.
+  # intercept - set to FALSE for a no-intercept model;
+  # x.name - x-axis label - if added.var is a scalar, the default "x" is 
+  #           replaced by the name of column added.var;
+  # y.name - y-axis label;
+  # main - main title for plot, if not supplied then the title is of the form
+#        "Added-variable plot for x".
+{
+  if(length(added.var)==1)
+  { 
+    # added.var is a column number for a variable in x.
+    if(x.name =="X")
+      x.name <- dimnames(x)[[2]][added.var]
+    xtilde <- x[,-added.var]
+    s.res <- lsfit(xtilde,y,intercept=intercept)$residuals
+    t.res <- lsfit(xtilde,x[,added.var],intercept=intercept)$residuals
+  }
+  else
+  {
+    # added.var is a "new" x variable not in x.
+    s.res <- lsfit(x,y,intercept=intercept)$residuals
+    t.res <- lsfit(x,added.var,intercept=intercept)$residuals
+  }
+  
+  if(main =="")
+    main <- paste("Added-variable plot for", x.name)
+  
+  plot(t.res,s.res,main=main,xlab=paste("Corrected",x.name),
+       ylab=paste("Corrected",y.name))
+  lines(lowess(t.res,s.res))
+}
 
 ```
+
+
+We will define the X matrix. This matrix will consist of these columns, in this order:
+Intercept, GDP per Capita, Social support, Healthy life expectancy, The freedom to make life choices, Generosity, Perceptions of corruption, and all the Region variables (except the Australia and New Zealand region).
+
+
+```{r}
+X <- cbind(1, as.matrix( HAPPY2[,c(2:ncol(HAPPY2))] ))
+head(X)
+```
+We will define the Y vector. This vector will contain the happiness scores.
+
+```{r}
+Y <- as.matrix( HAPPY2[,c(1)] )
+head(Y)
+```
+```{r}
+LMHappy = lm(score~., data=HAPPY2)
+summary(LMHappy)
+```
+```{r}
+anova(LMHappy)
+```
+
+
+```{r}
+plot(X[,2], Y, xlab="GDP", ylab="Happiness Score")
+plot(X[,3], Y, xlab="Support", ylab="Happiness Score")
+plot(X[,4], Y, xlab="Life Expectancy", ylab="Happiness Score")
+plot(X[,5], Y, xlab="Freedom", ylab="Happiness Score")
+plot(X[,6], Y, xlab="Generosity", ylab="Happiness Score")
+plot(X[,7], Y, xlab="Corruption", ylab="Happiness Score")
+```
+
+
+1. Residual plot against each explanatory variable,
+2. Partial residual plot for each explanatory variable,
+3. Added variable plot.
+
+4. Residuals vs. fitted,
+5. Q-Q residuals (theoretical quantities vs. standardized residuals).
+
+```{r}
+happy.lm <- lm(score~.,data=HAPPY2)
+
+happy.res.before <- happy.lm$residuals
+
+par(mfrow=c(2,3))
+
+plot(X[,2], happy.res.before, xlab="GDP", ylab="residuals", main="GDP Residual Plot")
+ls.part.res.plot(X[,2:ncol(X)],Y,1)
+ls.added.var.plot(X[,2:ncol(X)],Y,1)
+
+plot(X[,3], happy.res.before, xlab="Support", ylab="residuals", main="Support Residual Plot")
+ls.part.res.plot(X[,2:ncol(X)],Y,2)
+ls.added.var.plot(X[,2:ncol(X)],Y,2)
+
+plot(X[,4], happy.res.before, xlab="Life Expectancy", ylab="residuals",main="Life Expectancy Residual Plot")
+ls.part.res.plot(X[,2:ncol(X)],Y,3)
+ls.added.var.plot(X[,2:ncol(X)],Y,3)
+
+plot(X[,5], happy.res.before, xlab="Freedom", ylab="residuals", main="Freedom Residual Plot")
+ls.part.res.plot(X[,2:ncol(X)],Y,4)
+ls.added.var.plot(X[,2:ncol(X)],Y,4)
+
+plot(X[,6], happy.res.before, xlab="Generosity", ylab="residuals", main="Generosity Residual Plot")
+ls.part.res.plot(X[,2:ncol(X)],Y,5)
+ls.added.var.plot(X[,2:ncol(X)],Y,5)
+
+plot(X[,7], happy.res.before, xlab="Corruption", ylab="residuals", main="Corruption Residual Plot")
+ls.part.res.plot(X[,2:ncol(X)],Y,6)
+ls.added.var.plot(X[,2:ncol(X)],Y,6)
+```
+

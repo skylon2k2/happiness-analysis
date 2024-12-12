@@ -1,14 +1,12 @@
 ---
 title: "happiness_analysis"
-
 output:
+  pdf_document: 
+    
+    latex_engine: xelatex
   html_document:
     df_print: paged
-  pdf_document: 
-    latex_engine: xelatex
-    
 geometry: top=0.5cm
-
 date: "2024-12-01"
 ---
 
@@ -16,10 +14,103 @@ date: "2024-12-01"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+#### Partial residual plots ####
+
+ls.part.res.plot <- function(x,y,j,intercept=TRUE,x.name=NULL,y.name="Y",main=NULL)
+  
+  # Produces a partial-residual plot for variable j in x. 
+  # x - X matrix for current model (no column of 1's should be included for
+  #     for an intercept term);
+  # y - Y vector;
+  # j - a column number of x;
+  # intercept - set to FALSE for a no-intercept model;
+  # x.name - x-axis label - if not supplied, then the name of column
+  #          j in x will be used;
+  # y.name - y-axis label;
+  # main - main title for plot, if not supplied then the title is of the form
+#        "Partial-residual plot for x".
+
+{ # Get residuals. 
+  reg <- lsfit(x,y,intercept=intercept)
+  res <- reg$residuals
+  
+  
+  # add component from x_j
+  # if there is an intercept, we want coeeficient j+1
+  
+  jj <- j
+  if(intercept == TRUE)
+    jj <- j+1
+  res <- res+reg$coef[jj]*x[,j]
+  
+  # set up labels. 
+  
+  if(mode(x.name) == "NULL")
+    x.name <- dimnames(x)[[2]][j]
+  if(mode(main) == "NULL")
+    main <- paste("Partial-residual plot for", x.name)
+  
+  
+  plot(x[,j], res, main=main, xlab=x.name,
+       ylab=paste("Partial residuals for",y.name))
+  lines(lowess(x[,j],res))
+}
+
+##### Added-variable plot #####
+
+ls.added.var.plot <- function(x,y,added.var,intercept=TRUE,
+                              x.name="X",y.name="Y",main="")
+  # Produces an added-variable plot.
+  # x - X matrix for current model (no column of 1's should be included for
+  #     for an intercept term);
+  # y - Y vector;
+  # added.var - if a scalar, a column number of x;
+  #              if a vector of length > 1, values for a "new" x variable.
+  # intercept - set to FALSE for a no-intercept model;
+  # x.name - x-axis label - if added.var is a scalar, the default "x" is 
+  #           replaced by the name of column added.var;
+  # y.name - y-axis label;
+  # main - main title for plot, if not supplied then the title is of the form
+#        "Added-variable plot for x".
+{
+  if(length(added.var)==1)
+  { 
+    # added.var is a column number for a variable in x.
+    if(x.name =="X")
+      x.name <- dimnames(x)[[2]][added.var]
+    xtilde <- x[,-added.var]
+    s.res <- lsfit(xtilde,y,intercept=intercept)$residuals
+    t.res <- lsfit(xtilde,x[,added.var],intercept=intercept)$residuals
+  }
+  else
+  {
+    # added.var is a "new" x variable not in x.
+    s.res <- lsfit(x,y,intercept=intercept)$residuals
+    t.res <- lsfit(x,added.var,intercept=intercept)$residuals
+  }
+  
+  if(main =="")
+    main <- paste("Added-variable plot for", x.name)
+  
+  plot(t.res,s.res,main=main,xlab=paste("Corrected",x.name),
+       ylab=paste("Corrected",y.name))
+  lines(lowess(t.res,s.res))
+}
+
+```
+
 
 We will be performing residual analysis on 2019_happiness_cleaned.csv, the Happiness dataset for 2019.
 
+Installing packages
+```{r}
+#Install and import package to deal with the categorical variable, region.
+if (!require(fastDummies)) install.packages('fastDummies', dependencies = TRUE)
+library(fastDummies)
+```
 
+Now we read in the CSV file.
 
 ```{r}
 #Import the csv file
@@ -49,9 +140,28 @@ head(X)
 We will define the Y vector. This vector will contain the happiness scores.
 
 ```{r}
-Y <- cbind(as.matrix( HAPPY2[,c(1)] ))
+Y <- as.matrix( HAPPY2[,c(1)] )
 head(Y)
 ```
+```{r}
+LMHappy = lm(score~., data=HAPPY2)
+summary(LMHappy)
+```
+```{r}
+anova(LMHappy)
+```
+
+
+```{r}
+plot(X[,2], Y, xlab="GDP", ylab="Happiness Score")
+plot(X[,3], Y, xlab="Support", ylab="Happiness Score")
+plot(X[,4], Y, xlab="Life Expectancy", ylab="Happiness Score")
+plot(X[,5], Y, xlab="Freedom", ylab="Happiness Score")
+plot(X[,6], Y, xlab="Generosity", ylab="Happiness Score")
+plot(X[,7], Y, xlab="Corruption", ylab="Happiness Score")
+```
+
+
 1. Residual plot against each explanatory variable,
 2. Partial residual plot for each explanatory variable,
 3. Added variable plot.
@@ -59,3 +169,61 @@ head(Y)
 4. Residuals vs. fitted,
 5. Q-Q residuals (theoretical quantities vs. standardized residuals).
 
+```{r}
+happy.lm <- lm(score~.,data=HAPPY2)
+
+happy.res.before <- happy.lm$residuals
+
+par(mfrow=c(2,3))
+
+plot(X[,2], happy.res.before, xlab="GDP", ylab="residuals", main="GDP Residual Plot")
+ls.part.res.plot(X[,2:ncol(X)],Y,1)
+ls.added.var.plot(X[,2:ncol(X)],Y,1)
+
+plot(X[,3], happy.res.before, xlab="Support", ylab="residuals", main="Support Residual Plot")
+ls.part.res.plot(X[,2:ncol(X)],Y,2)
+ls.added.var.plot(X[,2:ncol(X)],Y,2)
+
+plot(X[,4], happy.res.before, xlab="Life Expectancy", ylab="residuals",main="Life Expectancy Residual Plot")
+ls.part.res.plot(X[,2:ncol(X)],Y,3)
+ls.added.var.plot(X[,2:ncol(X)],Y,3)
+
+plot(X[,5], happy.res.before, xlab="Freedom", ylab="residuals", main="Freedom Residual Plot")
+ls.part.res.plot(X[,2:ncol(X)],Y,4)
+ls.added.var.plot(X[,2:ncol(X)],Y,4)
+
+plot(X[,6], happy.res.before, xlab="Generosity", ylab="residuals", main="Generosity Residual Plot")
+ls.part.res.plot(X[,2:ncol(X)],Y,5)
+ls.added.var.plot(X[,2:ncol(X)],Y,5)
+
+plot(X[,7], happy.res.before, xlab="Corruption", ylab="residuals", main="Corruption Residual Plot")
+ls.part.res.plot(X[,2:ncol(X)],Y,6)
+ls.added.var.plot(X[,2:ncol(X)],Y,6)
+```
+
+
+```{r}
+fitB <- solve(t(X) %*% X) %*% t(X) %*% Y
+fitY <- fitted(lm(score~., data=HAPPY2))
+p = ncol(X) - 1
+n = length(Y)
+
+SSreg = t(fitY) %*% fitY - n * mean(Y)^2
+DFreg = p
+MSreg = SSreg/DFreg
+cbind(SSreg, DFreg, MSreg)
+
+SSres = t(Y - fitY) %*% (Y - fitY) 
+DFres = n-p-1
+MSres = SSres/DFres
+cbind(SSres, DFres, MSres)
+
+SStot = SSreg+SSres
+DFtot = n-1
+cbind(SStot, DFtot)
+
+```
+
+```{r}
+
+```
