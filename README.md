@@ -19,4 +19,4 @@ We will reach a conclusion after utilizing a series of statistical techniques an
 </ul>
 
 ## Software
-Aside from the initial cleaning of the dataset, all of the statistical analysis will be performed in R. Before performing any analysis, the data will cleaned using the PySpark library in Python to ensure that performing any analysis.
+Aside from the initial cleaning of the dataset, all of the statistical analysis will be performed in R. Before performing any analysis, the data will cleaned using the PySpark library in Python. This will allow us to add the regions column and to simplify column names, as well as to ensure that our analysis will not yeild unexpected results by removing NULL values.
